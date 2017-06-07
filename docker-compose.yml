@@ -15,7 +15,7 @@ services:
       - db
       - mail
     volumes:
-      - '/var/www/:/app/user'
+      - '.:/app/user'
 
   migrate:
     build: .
@@ -25,15 +25,9 @@ services:
     environment:
       DATABASE_URL: postgres://admin:password@db:5432/crystaldo_development
     volumes:
-      - '/var/www:/app/user'
+      - '.:/app/user'
     depends_on:
       - db
-
-  mail:
-    image: drujensen/mailcatcher:latest
-    ports:
-      - '1025:1025'
-      - '1080:1080'
 
   db:
     image: postgres
@@ -46,3 +40,44 @@ services:
 
 volumes:
   db:
+  
+    docker run -it -d --name amberweb -p 3000:3000 --link postgres -e DATABASE_URL=postgres://admin:password@db:5432/crystaldo_development
+    docker run -it -d --name postgres -e POSTGRES_USER=admin -e POSTGRES_PASSWORD=password -e POSTGRES_DB=crystaldo_development
+
+  web:
+    build: .
+    image: crystaldo
+    command: bash -c "crystal deps && crystal build --release src/crystaldo.cr && ./crystaldo"
+    working_dir: /app/user
+    environment:
+      DATABASE_URL: postgres://admin:password@db:5432/crystaldo_development
+      SMTP_URL: mail:1025
+    ports:
+      - '3000:3000'
+    depends_on:
+      - db
+      - mail
+    volumes:
+      - '.:/app/user'
+
+  migrate:
+    build: .
+    image: crystaldo
+    command: bash -c 'while ! nc -q 1 db 5432 </dev/null; do sleep 1; done && amber migrate up'
+    working_dir: /app/user
+    environment:
+      DATABASE_URL: postgres://admin:password@db:5432/crystaldo_development
+    volumes:
+      - '.:/app/user'
+    depends_on:
+      - db
+
+
+  db:
+    image: postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: crystaldo_development
+    volumes:
+      - 'db:/var/lib/postgres/data'
